@@ -44,9 +44,15 @@ jobs:
 
       - name: Fetch live data
         run: |
+          # Works whether the files sit in scripts/ and data/ or at the top level
+          SCRIPT=scripts/fetch_live.py; [ -f "$SCRIPT" ] || SCRIPT=fetch_live.py
+          SITES=data/sites.json;        [ -f "$SITES" ]  || SITES=sites.json
+          for f in index.html "$SCRIPT" "$SITES"; do
+            [ -f "$f" ] || { echo "::error::Missing $f in the repository"; exit 1; }
+          done
           mkdir -p site/live
           cp index.html site/index.html
-          python3 -I scripts/fetch_live.py --sites data/sites.json --out site/live/status.json --cache .cache/polygons
+          python3 -I "$SCRIPT" --sites "$SITES" --out site/live/status.json --cache .cache/polygons
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
