@@ -1,0 +1,56 @@
+# TerraScope live feed
+# Every 15 minutes: fetch Environment Agency flood warnings and UKHSA alerts,
+# match warnings to care homes, and publish the site with fresh live/status.json.
+# Publishes through GitHub Pages "GitHub Actions" source, so no commit is made
+# per run and the repository history stays clean.
+name: Live feed
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"     # GitHub may start scheduled runs a few minutes late
+  workflow_dispatch: {}        # "Run workflow" button for a manual refresh
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: live-feed
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Flood-area boundaries rarely change: keep them between runs.
+      - uses: actions/cache@v4
+        with:
+          path: .cache/polygons
+          key: flood-polygons-${{ github.run_id }}
+          restore-keys: flood-polygons-
+
+      - name: Fetch live data
+        run: |
+          mkdir -p site/live
+          cp index.html site/index.html
+          python3 -I scripts/fetch_live.py --sites data/sites.json --out site/live/status.json --cache .cache/polygons
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
